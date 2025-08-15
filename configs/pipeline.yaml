@@ -1,0 +1,23 @@
+yolo:
+  model: "yolov8m.pt"
+  conf: 0.2
+  iou: 0.6
+  max_det: 300
+
+regionclip:
+  model_name: "ViT-B/16"
+  weights: "checkpoints/regionclip/regionclip_vitb16.pt"
+  topk_regions: 120
+
+reltr:
+  cfg: "RelTR/configs/reltr_vg.yaml"
+  weights: "checkpoints/reltr/reltr_vg.pth"
+  score_thresh: 0.2
+
+match:
+  alpha: 0.45   # s_reltr
+  beta:  0.20   # s_clip_sub
+  gamma: 0.20   # s_clip_obj
+  delta: 0.10   # s_yolo
+  eps:   0.05   # s_geom
+  final_thresh: 0.42
