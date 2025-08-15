@@ -9,7 +9,7 @@ from models.llm_parser import heuristic_parse
 from models.yolo_wrap import YOLOWrapper
 from models.region_wrap import RegionCLIPWrapper
 from models.reltr_wrap import RelTRWrapper
-from pipeline.match import score_triplet
+from pipeline.match import match_triplets, score_triplet
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -20,9 +20,21 @@ def load_models(cfg_path: str) -> Tuple[YOLOWrapper, RegionCLIPWrapper, RelTRWra
     """Load and cache models to avoid reloading"""
     cfg = yaml.safe_load(open(cfg_path, "r"))
     yolo = YOLOWrapper(**cfg["yolo"])
-    rc = RegionCLIPWrapper()
-    reltr = RelTRWrapper(cfg["reltr"]["cfg"], cfg["reltr"]["weights"])
+    rc = RegionCLIPWrapper(
+        model_name=cfg["regionclip"]["model_name"],
+        checkpoint_path=cfg["regionclip"]["weights"]
+    )
+    reltr = RelTRWrapper(cfg["reltr"]["weights"])
     return yolo, rc, reltr, cfg
+
+def crop_boxes(image, boxes):
+    """Crop image regions based on bounding boxes"""
+    crops = []
+    for box in boxes:
+        x1, y1, x2, y2 = [int(v) for v in box]
+        crop = image.crop((x1, y1, x2, y2))
+        crops.append(crop)
+    return crops
 
 def draw(img, box, color, text=None):
     x1,y1,x2,y2 = map(int, box)
@@ -63,8 +75,8 @@ def run(image_path: str, query: str, cfg_path: str = "configs/pipeline.yaml") ->
                 reg_feats = rc.encode_regions(img_pil, boxes)
                 sub_emb = rc.encode_text(subj_text)
                 obj_emb = rc.encode_text(obj_text)
-                s_sub = rc.sim(reg_feats, sub_emb).cpu().numpy()
-                s_obj = rc.sim(reg_feats, obj_emb).cpu().numpy()
+                s_sub = rc.similarity(reg_feats, sub_emb).cpu().numpy()
+                s_obj = rc.similarity(reg_feats, obj_emb).cpu().numpy()
         except Exception as e:
             logger.error(f"RegionCLIP processing failed: {e}")
             raise
@@ -82,7 +94,7 @@ def run(image_path: str, query: str, cfg_path: str = "configs/pipeline.yaml") ->
         try:
             img_t = torch.from_numpy(img_cv.transpose(2,0,1)).float()/255.0
             img_t = img_t.unsqueeze(0).cuda()
-            triplets = reltr.predict(img_t, boxes_k)
+            triplets = reltr.predict_relations(img_t, boxes_k)
             logger.info(f"RelTR found {len(triplets)} relations")
         except Exception as e:
             logger.error(f"RelTR processing failed: {e}")

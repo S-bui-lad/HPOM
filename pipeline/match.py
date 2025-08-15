@@ -94,3 +94,53 @@ def match_triplets(parsed_query, triplets, s_sub, s_obj, yolo_scores, boxes, cfg
     if best and best['score'] >= w.get('final_thresh', 0.0):
         return best
     return None
+
+
+def score_triplet(triplet, s_sub, s_obj, yolo_scores, boxes, target_rel, weights):
+    """Score a single triplet based on various factors
+    
+    Args:
+        triplet: Triplet dictionary with sub_idx, obj_idx, rel_score, rel_label
+        s_sub: Subject similarity scores tensor
+        s_obj: Object similarity scores tensor  
+        yolo_scores: YOLO confidence scores
+        boxes: Bounding boxes
+        target_rel: Target relation string
+        weights: Weight dictionary for scoring components
+        
+    Returns:
+        tuple: (score, sub_idx, obj_idx, rel_label)
+    """
+    s_idx = triplet['sub_idx']
+    o_idx = triplet['obj_idx']
+    
+    if s_idx >= len(s_sub) or o_idx >= len(s_obj):
+        return -1.0, s_idx, o_idx, triplet.get('rel_label', 'unknown')
+    
+    s_reltr = float(triplet.get('rel_score', 0.0))
+    s_clip_sub = float(s_sub[s_idx])
+    s_clip_obj = float(s_obj[o_idx])
+    s_yolo = float((yolo_scores[s_idx] + yolo_scores[o_idx]) / 2.0)
+    s_geom = geom_prior(boxes[s_idx], boxes[o_idx], target_rel)
+    
+    score = (weights['alpha'] * s_reltr
+             + weights['beta'] * s_clip_sub
+             + weights['gamma'] * s_clip_obj
+             + weights['delta'] * s_yolo
+             + weights['eps'] * s_geom)
+    
+    # Relation label matching using synonyms
+    trip_rel_label = str(triplet.get('rel_label', '')).lower()
+    if trip_rel_label != 'unknown' and target_rel and trip_rel_label != target_rel:
+        # Check synonyms
+        rel_map = load_relations("configs/relations.yaml")
+        mapped = False
+        for k, v in rel_map.items():
+            if trip_rel_label == k:
+                if isinstance(v, list) and target_rel in [x.lower() for x in v]:
+                    mapped = True
+                    break
+        if not mapped:
+            score *= 0.9
+    
+    return score, s_idx, o_idx, trip_rel_label

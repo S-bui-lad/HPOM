@@ -3,15 +3,17 @@ yolo:
   conf: 0.2
   iou: 0.6
   max_det: 300
+  device: "cpu"  # or "gpu"
+
 
 regionclip:
-  model_name: "ViT-B/16"
-  weights: "checkpoints/regionclip/regionclip_vitb16.pt"
+  model_name: "ViT-B-32"
+  weights: "RegionCLIP/regionclip_pretrained-cc_rn50x4.pth"
   topk_regions: 120
 
 reltr:
-  cfg: "RelTR/configs/reltr_vg.yaml"
-  weights: "checkpoints/reltr/reltr_vg.pth"
+  weights: "D:/book/PTIT/HPOM/RelTR/checkpoint.pth"
+  cfg: "D:/book/PTIT/HPOM/configs/relations.yaml"
   score_thresh: 0.2
 
 match:
